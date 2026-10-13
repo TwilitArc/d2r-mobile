@@ -52,7 +52,10 @@ for _ in range(struct.unpack_from('<I', b, 16)[0]):
     assert length >= 8
     p += length
 assert versions == [(18 << 16) | (4 << 8)], versions
-files = [f for f in app.rglob('*') if f.is_file()]
+required = (app/'dm/shell_manifest.txt').read_text().splitlines()
+files = [f for f in app.rglob('*') if f.is_file() and not any(
+    f.relative_to(app).as_posix().startswith(p) if p.endswith('/') else f.relative_to(app).as_posix() == p
+    for p in required if p)]
 assert not any(f.suffix in ('.bin', '.tsv', '.data', '.metallib', '.nso', '.nca', '.keys') for f in files)
 assert not any(f.name == 'Guest' for f in files)
 with zipfile.ZipFile(out/'D2RMobile-ios18-shell.ipa', 'w', zipfile.ZIP_DEFLATED) as z:
