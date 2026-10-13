@@ -32,14 +32,24 @@ Product identity: `3.3.94012-ios18-r40`.
 - Run: https://github.com/TwilitArc/d2r-mobile/actions/runs/38348785281
 - The first compile exposed an omitted Metal 4 dependency in the included extrapolation renderer. It was converted to legacy texture/buffer binding, and the regression check now scans all renderer `.inc` files.
 
-This is not a full application link/build or GPU execution test. No iOS 18 IPA has been built or signed, and no device test has been run. Compiler warnings remain.
+## Full shell build and local packaging
+
+- Full Xcode Release application compilation and linking passed on macOS, targeting arm64 / iOS 18.4: https://github.com/TwilitArc/d2r-mobile/actions/runs/38349441566
+- `ci_shell_build.sh` builds from empty table templates without uploading game files. Shell brightness metadata is now loaded from `BRIGHT` records in `derived.tsv`, generated locally by the packer. Two parser boundary tests passed.
+- The manifest shader directory is generated from the same chain identifier as the executable. The shell excludes every resource listed for local replacement, including `native_art_manifest.json`.
+- The first local overlay run hit a Windows sandbox hard-link denial. Re-running the same authorized packer outside the sandbox succeeded.
+- Final local IPA: `D2RMobile-iOS18.4-iPhone15ProMax.ipa`, 122492249 bytes, SHA-256 `d71cb5f1960d51bf9c1123cc96da32b099b3e8ab874967a3ad9c7805ac12c1b4`.
+- App and Guest framework Mach-O and plists declare minimum iOS 18.4. ZIP CRC passed, 14335 unique entries, all 26 required items present, 6927 shader reflections share the executable's chain. Brightness data contains 138 records. Original ExeFS hashes passed.
+- A duplicate resource manifest from the initial shell was removed while preserving the locally generated manifest and binary contents. The CI shell source was fixed for future builds.
+
+This unsigned IPA has not been signed, installed or run on a physical iPhone. Compiler warnings remain. Successful builds do not establish GPU/runtime correctness.
 
 ## Required next steps
 
 1. Source candidate has been pushed and its Apple SDK compilation check passed. Its output is a source/API compilation check, not an IPA.
 2. Run the graphics regression tests on an Apple machine with a usable Metal device, including `t_rt_range` (now using the legacy descriptors and checking explicit pool unregistration).
-3. Build a new shell from this source on macOS, using the project's existing `dm/ios/tools/shell_build.sh` process. This full shell build requires generated game inputs; no game files or derived game assets have been uploaded in this task.
-4. Package that shell locally on Windows with `dm/tools/d2rm_pack.py`. Reuse the verified `game/` inputs and `iPhone-resources/` beside this source checkout.
+3. The new shell has been built using `dm/ios/tools/ci_shell_build.sh`, retaining the original shell loading and runtime table mechanism. No game payload was uploaded.
+4. Local Windows packaging is complete. Keep the verified `iPhone-resources/` beside the IPA for manual transfer.
 5. Sign with the user's chosen tool and test on iOS 18.4.1: clean launch, resource import, shader compilation, character creation, entering a game, combat, changing acts, touch/controller input, save/load and background/resume.
 
 Only passing compilation and device tests can establish that this is a working compatible version. Keep the original iOS 26 IPA separate.
