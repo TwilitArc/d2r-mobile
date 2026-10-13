@@ -15,6 +15,7 @@ python3 tools/gen_build.py ../host Gen > Gen/dm.xcconfig
 printf '\nOTHER_CFLAGS = $(inherited) -DDM_SHELL -mcpu=apple-a17\nOTHER_LDFLAGS = $(inherited) $(DM_FRAMEWORKS)\n' >> Gen/dm.xcconfig
 printf '// Shell: game images are supplied by the local packer.\n' > Gen/embed.S
 for d in assets/NativeHUD/v4/hud_v4_ui assets/NativeHUD/mapgoal romfs_overlay romfs_overlay_variants romfs_overlay_astc romfs_overlay_astc_variants dm msl save_ref save_ref_warlock; do mkdir -p "Gen/$d"; done
+cp ../gfx/nvn/shader_map.tsv ../gfx/nvn/pso_manifest.tsv Gen/dm/
 export DM_BUNDLE_ID=org.d2rmobile.app DM_TEAM_ID=0000000000
 python3 tools/project_free.py project.yml project_free.yml
 python3 - <<'PY'
@@ -30,7 +31,7 @@ xcodegen generate --spec project_free.yml
 xcodebuild -project DmIOS.xcodeproj -scheme DmIOS -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath "$OUT/dd" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
-  DM_DEVICE_FAMILY=1,2 build > "$OUT/build.log" 2>&1 || { tail -80 "$OUT/build.log"; exit 1; }
+  DM_DEVICE_FAMILY=1,2 DM_BUILD_NUMBER=2 build > "$OUT/build.log" 2>&1 || { tail -80 "$OUT/build.log"; exit 1; }
 mkdir -p "$OUT/Payload"
 cp -R "$OUT/dd/Build/Products/Release-iphoneos/DmIOS.app" "$OUT/Payload/"
 APP="$OUT/Payload/DmIOS.app"
@@ -56,7 +57,9 @@ required = (app/'dm/shell_manifest.txt').read_text().splitlines()
 files = [f for f in app.rglob('*') if f.is_file() and not any(
     f.relative_to(app).as_posix().startswith(p) if p.endswith('/') else f.relative_to(app).as_posix() == p
     for p in required if p)]
-assert not any(f.suffix in ('.bin', '.tsv', '.data', '.metallib', '.nso', '.nca', '.keys') for f in files)
+runtime_tables = {'dm/shader_map.tsv', 'dm/pso_manifest.tsv'}
+assert all((app/p).is_file() and (app/p).stat().st_size for p in runtime_tables)
+assert not any(f.suffix in ('.bin', '.tsv', '.data', '.metallib', '.nso', '.nca', '.keys') and f.relative_to(app).as_posix() not in runtime_tables for f in files)
 assert not any(f.name == 'Guest' for f in files)
 with zipfile.ZipFile(out/'D2RMobile-ios18-shell.ipa', 'w', zipfile.ZIP_DEFLATED) as z:
     for f in files: z.write(f, f.relative_to(out))

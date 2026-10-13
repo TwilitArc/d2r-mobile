@@ -59,6 +59,8 @@ def read_shell(ipa):
         manifest = [l.strip() for l in z.read(base + 'dm/shell_manifest.txt').decode().splitlines() if l.strip()]
         info = dict(l.strip().split('=', 1) for l in z.read(base + 'dm/shell_info.txt').decode().splitlines() if '=' in l)
     except KeyError: die('这不是壳：里面没有 dm/shell_manifest.txt / dm/shell_info.txt（%s）' % ipa)
+    for name in ('shader_map.tsv', 'pso_manifest.tsv'):
+        if base + 'dm/' + name not in z.namelist(): z.close(); die('壳缺少运行时着色器表 dm/%s，需重新出壳' % name)
     exe = next((n for n in z.namelist() if n == base + apps[0][:-4]), None)
     return z, base, manifest, info, exe
 
