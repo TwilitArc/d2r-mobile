@@ -1,0 +1,15 @@
+name: iOS 18 source compilation
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios18-support]
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check iOS 18 APIs and generated artifact versions
+        run: bash dm/gfx/tests/check_ios18_compile.sh

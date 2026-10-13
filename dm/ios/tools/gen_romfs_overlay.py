@@ -183,7 +183,7 @@ with tempfile.TemporaryDirectory() as t:
         with open(os.path.join(t,tag+'repl.tsv'),'w') as f:
             for k,v in repl.items(): f.write(f'{"" if k in MAN else "+"}{k}\t{os.path.join(t,v)}\n')   # 新增路径前加「+」（casc_overlay.py） | New paths are prefixed with "+" (casc_overlay.py)
         subprocess.run([sys.executable,os.path.join(HERE,'..','..','tools','casc_overlay.py'),romfs,os.path.join(t,tag+'ov'),os.path.join(t,tag+'repl.tsv')]+(['--prebuilt',prebuilt] if prebuilt else []),check=True,stdout=subprocess.DEVNULL)
-        src=os.path.join(t,tag+'ov','data'); new=[n for n in os.listdir(src) if n.endswith('.data') and not os.path.islink(os.path.join(src,n))]
+        src=os.path.join(t,tag+'ov','data'); new=[n for n in os.listdir(src) if n.endswith('.data') and not os.path.isfile(os.path.join(romfs,'data',n))]
         assert len(new)==1, new
         shutil.rmtree(dst,ignore_errors=True); os.makedirs(os.path.join(dst,'data'))
         for n in ('.build.config',new[0]): shutil.copyfile(os.path.join(src,n),os.path.join(dst,'data',n))

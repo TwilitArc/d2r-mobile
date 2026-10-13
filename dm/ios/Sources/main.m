@@ -4,7 +4,6 @@
 #include <sys/resource.h>
 static int g_nofile_was, g_nofile_now;   // 启动时的文件描述符软上限（原值 / 现值），开日志后记一行 | File descriptor soft limit at launch (old / new value); one line is logged after the log opens
 #import <Metal/Metal.h>
-#import <BackgroundAssets/BackgroundAssets.h>
 #import "asset_dl.h"
 #import <CommonCrypto/CommonDigest.h>
 #include <sys/mman.h>
@@ -361,13 +360,8 @@ static NSString *astc_pack_locate(char *why, size_t n) {
 static int g_doc_bad;   // romfs_locate 的附带结论：「文件」里有资源文件夹但校验没过（why = 哪个文件、现有 / 应有字节数）——此时不去试托管下载 | Side conclusion of romfs_locate: the Files app has an asset folder but validation did not pass (why = which file, present / expected byte counts) -- in this case do not try the hosted download
 static int g_pack_wait;   // 托管资源包的目录已经在、系统还没说「本地可用」（还在下 / 还在落盘） | The managed asset pack's directory already exists but the system has not said "locally available" (still downloading / still being written to disk)
 static int g_doc_stray;   // 另一条附带结论：「D2R Mobile」里有文件夹但没有一个是资源（why = 现有哪些文件夹），托管资源包也没到——照常去试托管下载，下载站也走不通时把 why 给玩家看 | The other side conclusion: 「D2R Mobile」 has folders but none of them is assets (why = which folders exist now), and the hosted asset pack has not arrived either -- try the hosted download as usual, and show why to the player when the download site is unreachable too
-// 本包有没有配置苹果的托管资源包（Info.plist 的 BAHasManagedAssetPacks）。没配置的包（免费账号档、不带游戏内容的壳：tools/project_free.py、
-// tools/shell_build.sh 把那几项去掉了）一碰 BAAssetPackManager，系统接口内部断言直接让进程退出——真机实测：没有资源的第一次启动必崩。
-// 所以凡是要问那个接口的地方先问这里。
-// Whether this bundle is configured with Apple managed asset packs (BAHasManagedAssetPacks in Info.plist). In a bundle without it (the free-account build and the shell with no game content: tools/project_free.py and
-// tools/shell_build.sh remove those keys), merely touching BAAssetPackManager trips an assertion inside the system framework and the process exits -- measured on a device: the first launch with no resources always crashed.
-// So every place that is about to ask that framework asks here first.
-static BOOL ba_configured(void) { return [[NSBundle.mainBundle objectForInfoDictionaryKey:@"BAHasManagedAssetPacks"] boolValue]; }
+// iOS 18 build: resources are imported into the app folder; no managed asset pack API.
+
 
 static NSString *romfs_locate(char *why, size_t n) {
     g_doc_bad = 0; g_doc_stray = 0;
@@ -453,11 +447,7 @@ static NSString *romfs_locate(char *why, size_t n) {
     g_pack_wait = 0;
     NSString *pack = nil; BOOL avail = NO; const char *tp = getenv("DM_ROMFS_TEST_PACK");   // 只测试用：DM_ROMFS_TEST_PACK=<Documents 下的文件夹名> 当成「本地可用」的托管资源包 | Test only: DM_ROMFS_TEST_PACK=<folder name under Documents> is treated as a "locally available" managed asset pack
     if (tp && *tp && !strchr(tp, '/')) { pack = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0] stringByAppendingPathComponent:@(tp)]; avail = YES; }
-    else if (!ba_configured()) plog("boot: 本包没有配置托管资源包，不问系统");
-    else if (@available(iOS 26.4, *)) {
-        NSError *e = nil; pack = [BAAssetPackManager.sharedManager URLForPath:@"romfs" error:&e].path; avail = [BAAssetPackManager.sharedManager assetPackIsAvailableLocallyWithIdentifier:@"romfs"];
-        if (e) plog("boot: 托管资源包取路径报错：%s", e.localizedDescription.UTF8String);
-    }
+
     if (pack) {
         NSArray *in = [fm contentsOfDirectoryAtPath:[pack stringByAppendingPathComponent:@"data"] error:nil]; BOOL there = [fm fileExistsAtPath:pack];
         plog("boot: 托管资源包：系统说本地%s；路径 %s（磁盘上%s，data 里 %d 个文件）", avail ? "可用" : "不可用", pack.fileSystemRepresentation, there ? "有" : "没有", (int)in.count);
@@ -731,7 +721,7 @@ static void run_mode(void) {
 static void run_boot(void);
 // 资源下载界面（安装时系统不给进度，判断不了是在下还是卡住）：资源包不在本地时显示已下 / 总量 / 速度，出错把原因写在屏上并可重试；到了就地起宿主进游戏
 // Asset download screen (the system gives no progress during install, so you cannot tell downloading from stuck): when the asset pack is not local, show downloaded / total / speed; on error write the reason on screen and allow retry; once it arrives, start the host in place and enter the game
-@interface AssetVC : UIViewController <BAManagedAssetPackDownloadDelegate>
+@interface AssetVC : UIViewController
 @property (strong) UILabel *label; @property (strong) UIProgressView *bar; @property (strong) UIButton *retry;
 @property (assign) int64_t last; @property (assign) CFAbsoluteTime lastT; @property (assign) double rate;
 @property (strong) nw_path_monitor_t netmon; @property (assign) int netDown, stopped;   // 守着网络：停在「下载没开始」那一页时，网络从不通变成通就自己重试 | network watch: while sitting on the "download did not start" page, retry automatically when the network goes from down to up
@@ -787,22 +777,8 @@ static void run_boot(void);
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{ [self ready]; });
         return;
     }
-    if (!ba_configured()) { [self direct:stray]; return; }
-    if (@available(iOS 26.4, *)) {
-        [self say:T("dmDlConnecting")];
-        BAAssetPackManager *m = BAAssetPackManager.sharedManager; m.delegate = self;
-        [m getAssetPackWithIdentifier:@"romfs" completionHandler:^(BAAssetPack *pack, NSError *e) {
-            if (!pack) { plog("assets: 没有托管资源包（%s），改从下载站直接下", e.localizedDescription.UTF8String); dispatch_async(dispatch_get_main_queue(), ^{ [self direct:stray]; }); return; }   // 直装包走到这里必然失败 | A direct-install build always fails when it gets here
-            [self say:T("dmDlDownloading")];
-            [m ensureLocalAvailabilityOfAssetPack:pack completionHandler:^(NSError *e2) {
-                if (e2) { [self fail:@"下载游戏资源" error:e2]; return; }
-                dispatch_async(dispatch_get_main_queue(), ^{ [self ready]; });
-            }];
-        }];
-    } else [self direct:stray];
+    [self direct:stray];
 }
-// 直装包：从我们自己的下载站把资源直接下到 Documents/D2R Mobile Resources（asset_dl.m）。下载站走不通时界面退回原来的指引（或 fallback 给的原因）
-// Direct-install build: download the assets straight from our own download site into Documents/D2R Mobile Resources (asset_dl.m). When the download site is unreachable the screen falls back to the original instructions (or the reason given by fallback)
 - (void)direct:(NSString *)fallback {
     if (!res_dl_configured()) {   // 这个包没配下载地址（照公开仓库自己出的包）：不去连、不说「下载没开始」，只讲把资源拷进来 | This build has no download address configured (a build made by yourself from the public repository): do not connect, do not say "the download has not started", only explain how to copy the resources in
         plog("assets: 本包没配资源下载地址，不走下载"); [self say:fallback ? [NSString stringWithFormat:@"%@\n%@", fallback, T("dmDlCopyInShort")] : no_assets_text()]; self.bar.hidden = YES; self.retry.hidden = NO; self.stopped = 1; return; }   // 这条路没有进度可报：不留一条空的进度条 | nothing to report progress on along this path: do not leave an empty progress bar
@@ -846,15 +822,6 @@ static void run_boot(void);
         [self presentViewController:a animated:YES completion:nil];
     }];
 }
-- (void)downloadOfAssetPack:(BAAssetPack *)p hasProgress:(NSProgress *)g {
-    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent(); int64_t done = g.completedUnitCount, total = g.totalUnitCount;
-    if (now - self.lastT >= 1.0) { self.rate = (done - self.last) / (now - self.lastT); self.last = done; self.lastT = now; }
-    NSString *t = [NSString stringWithFormat:T("dmDlProgress"), done / 1e9, total / 1e9, total ? 100.0 * done / total : 0, self.rate / 1e6];
-    dispatch_async(dispatch_get_main_queue(), ^{ self.label.text = t; self.bar.progress = total ? (float)done / total : 0; });
-}
-- (void)downloadOfAssetPackFinished:(BAAssetPack *)p { plog("assets: 系统通知资源包下载完成"); dispatch_async(dispatch_get_main_queue(), ^{ [self ready]; }); }
-- (void)downloadOfAssetPackPaused:(BAAssetPack *)p { [self say:T("dmDlPaused")]; }
-- (void)downloadOfAssetPack:(BAAssetPack *)p failedWithError:(NSError *)e { [self fail:@"下载游戏资源" error:e]; }
 - (void)ready {
     char why[2048];
     static int started; if (started) return;   // 完成回调与系统的完成通知都会走到这里：只起一次 | Both the completion callback and the system's completion notification end up here: start only once

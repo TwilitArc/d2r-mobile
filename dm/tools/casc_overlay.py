@@ -48,6 +48,7 @@ when the EKey or block checksum is computed wrong the game exits as soon as it r
 """
 
 import hashlib
+import os
 from pathlib import Path
 import struct
 import sys
@@ -84,6 +85,13 @@ def read_replacements(filename):
     return result
 
 
+def link_file(target, source):
+    if os.name == 'nt':
+        target.hardlink_to(source.resolve())
+    else:
+        target.symlink_to(source.resolve())
+
+
 def link_tree(source, output, skip=()):
     output.mkdir(parents=True, exist_ok=True)
     for entry in source.iterdir():
@@ -93,7 +101,7 @@ def link_tree(source, output, skip=()):
         if entry.is_dir() and not entry.is_symlink():
             link_tree(entry, target)
         else:
-            target.symlink_to(entry.resolve())
+            link_file(target, entry)
 
 
 def read_manifest(source):
@@ -517,7 +525,7 @@ def rewrite_tvfs(source, output, replacements, prebuilt=None):
     (output / "data" / ".build.config").write_text("".join(new_config), encoding="utf-8")
     for entry in data_dir.iterdir():
         if entry.name not in {".build.config", data_name}:
-            (output / "data" / entry.name).symlink_to(entry.resolve())
+            link_file(output / "data" / entry.name, entry)
     print(f"overlay: {len(updates)} replacement(s), {len(adds)} addition(s), {len(prebuilt_pos)} prebuilt, TVFS rewritten, data={data_name}")
 
 
@@ -528,7 +536,7 @@ def make_overlay(source, output, replacements, prebuilt=None):
     (output / "data").mkdir()
     if not replacements and not prebuilt:
         for entry in (source / "data").iterdir():
-            (output / "data" / entry.name).symlink_to(entry.resolve())
+            link_file(output / "data" / entry.name, entry)
         print("empty replacement table: linked all source files")
         return
     rewrite_tvfs(source, output, replacements, prebuilt)

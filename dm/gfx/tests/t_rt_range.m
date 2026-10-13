@@ -15,9 +15,9 @@ static tex_t color={.serial=52000},depth={.serial=52001};static prog_t pg[2]={{.
 static p_set_rt rt(int levels){p_set_rt r={.n=1,.depth=&depth,.has_dview=1};r.color[0]=&color;r.has_cview[0]=1;
  r.cview[0]=(view_t){.set_levels=1,.set_layers=1,.set_format=1,.set_target=1,.nlevels=levels,.nlayers=1,.format=NVN_FORMAT_RGBA8,.target=NVN_TEXTURE_TARGET_2D};
  r.dview=r.cview[0];r.dview.nlevels=1;r.dview.base_level=small_depth?1:0;r.dview.format=NVN_FORMAT_DEPTH32F_STENCIL8;return r;}
-static void seed(void){MTL4RenderPassDescriptor *p=[MTL4RenderPassDescriptor new];p.colorAttachments[0].texture=tex_mtl(&color);p.colorAttachments[0].loadAction=MTLLoadActionClear;p.colorAttachments[0].storeAction=MTLStoreActionStore;p.colorAttachments[0].clearColor=MTLClearColorMake(0,0,0,1);
+static void seed(void){MTLRenderPassDescriptor *p=[MTLRenderPassDescriptor new];p.colorAttachments[0].texture=tex_mtl(&color);p.colorAttachments[0].loadAction=MTLLoadActionClear;p.colorAttachments[0].storeAction=MTLStoreActionStore;p.colorAttachments[0].clearColor=MTLClearColorMake(0,0,0,1);
  p.depthAttachment.texture=p.stencilAttachment.texture=tex_mtl(&depth);p.depthAttachment.loadAction=p.stencilAttachment.loadAction=MTLLoadActionClear;p.depthAttachment.storeAction=p.stencilAttachment.storeAction=MTLStoreActionStore;p.depthAttachment.clearDepth=.75;p.stencilAttachment.clearStencil=0x2d;enc_r_end(enc_r_begin(p));
- if(sample_attachment){MTL4RenderPassDescriptor *q=[MTL4RenderPassDescriptor new];q.colorAttachments[0].texture=tex_mtl(&color);q.colorAttachments[0].level=1;q.colorAttachments[0].loadAction=MTLLoadActionClear;q.colorAttachments[0].storeAction=MTLStoreActionStore;q.colorAttachments[0].clearColor=MTLClearColorMake(0,1,0,0);enc_r_end(enc_r_begin(q));}
+ if(sample_attachment){MTLRenderPassDescriptor *q=[MTLRenderPassDescriptor new];q.colorAttachments[0].texture=tex_mtl(&color);q.colorAttachments[0].level=1;q.colorAttachments[0].loadAction=MTLLoadActionClear;q.colorAttachments[0].storeAction=MTLStoreActionStore;q.colorAttachments[0].clearColor=MTLClearColorMake(0,1,0,0);enc_r_end(enc_r_begin(q));}
  if(small_depth){p.colorAttachments[0].texture=nil;p.depthAttachment.level=p.stencilAttachment.level=1;enc_r_end(enc_r_begin(p));}}
 static void rr_read_planes(id<MTLBuffer> __strong *b){id<MTLTexture> t=tex_mtl(&color),d=tex_mtl(&depth);[blit()copyFromTexture:t sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0)sourceSize:MTLSizeMake(8,8,1)toBuffer:b[0]destinationOffset:0 destinationBytesPerRow:32 destinationBytesPerImage:256];
  [blit()copyFromTexture:d sourceSlice:0 sourceLevel:0 sourceOrigin:MTLOriginMake(0,0,0)sourceSize:MTLSizeMake(8,8,1)toBuffer:b[1]destinationOffset:0 destinationBytesPerRow:32 destinationBytesPerImage:256 options:MTLBlitOptionDepthFromDepthStencil];
@@ -48,5 +48,8 @@ int main(int argc,char **argv){@autoreleasepool{enabled=1;for(int i=1;i<argc;i++
    E(udc?"原附件模型2048−2×320（DontCare）":"原附件模型2048",(small_depth?1152:2048)-2*dsb,bytes[0]);
    E(udc?"候选附件模型1024−320（DontCare）":"候选附件模型1024/默认2048",(small_depth?1152:enabled&&!sample_attachment?1024:2048)-(enabled&&!sample_attachment?1:2)*dsb,bytes[1]); }
  const char *dir=getenv("DM_GFX_FIXTURE_OUT");if(dir){char p[1024];for(int m=0;m<2;m++)for(int j=0;j<3;j++){snprintf(p,sizeof p,"%s/%s_%s.raw",dir,m?"candidate":"reference",j==0?"color":j==1?"depth":"stencil");FILE *f=fopen(p,"wb");if(!f||fwrite(buffers[m][j].contents,1,j==2?64:256,f)!=(j==2?64:256))abort();fclose(f);}}
- mtl_pool_del(ix);free(ix);printf("RT_RANGE_GPU cases=%d failed=%d\n",cases,bad);return bad!=0;
+ id<MTLBuffer> retired=nil;for(int i=0;i<g_npool;i++)if(g_pools[i].key==ix)retired=g_pools[i].buf;
+ E("retired pool retained by earlier command buffer",1,retired!=nil);
+ mtl_pool_del(ix);E("retired pool removed from resource registry",0,[g_res_objects containsObject:retired]);E("retired pool removed from GPU buffer registry",0,[g_res_buffers containsObject:retired]);
+ free(ix);printf("RT_RANGE_GPU cases=%d failed=%d\n",cases,bad);return bad!=0;
 }}
