@@ -50,7 +50,7 @@ This unsigned IPA has not been signed, installed or run on a physical iPhone. Co
 
 Two iOS 18.4.1 boot attempts reached resource validation, Guest loading, `nnMain` and Metal initialization, then stopped at `FATAL` because `dm/shader_map.tsv` was missing. The CI shell omitted the two tables copied by the original `run.sh` workflow. Both `shader_map.tsv` and `pso_manifest.tsv` are now copied into the shell; packing rejects shells missing either table. Regression fixtures cover both missing-table cases and an accepted complete shell.
 
-Local r2 IPA: `D2RMobile-iOS18.4-iPhone15ProMax-r2.ipa`, build 2, 122731652 bytes, SHA-256 `eecedcb2548d4dc4af94764cf60b5317cc0122004521e4a49b0b397789c2826a`. Both tables are present; ZIP CRC and all prior package checks passed, with 14337 unique entries. App/Guest executable hashes are unchanged. This r2 package has not been tested on a phone yet.
+Local r2 IPA: `D2RMobile-iOS18.4-iPhone15ProMax-r2.ipa`, build 2, 122731652 bytes, SHA-256 `eecedcb2548d4dc4af94764cf60b5317cc0122004521e4a49b0b397789c2826a`. Both tables are present; ZIP CRC and all prior package checks passed, with 14337 unique entries. App/Guest executable hashes are unchanged. On 2026-10-13 the user confirmed that this r2 package runs normally on their iPhone 15 Pro Max running iOS 18.4.1. This is a user-reported device result; the full scenario checklist below has not been independently verified.
 
 1. Source candidate has been pushed and its Apple SDK compilation check passed. Its output is a source/API compilation check, not an IPA.
 2. Run the graphics regression tests on an Apple machine with a usable Metal device, including `t_rt_range` (now using the legacy descriptors and checking explicit pool unregistration).

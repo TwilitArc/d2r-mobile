@@ -1,0 +1,39 @@
+name: Publish iOS 18 r2
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios18-support]
+    paths: ['.github/workflows/ios18-release.yml']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Build verified unsigned shell
+        run: bash dm/ios/tools/ci_shell_build.sh "$RUNNER_TEMP/ios18-release"
+      - name: Package clean source and checksums
+        run: |
+          git archive --format=zip --prefix=d2r-mobile-ios18-r2/ HEAD > "$RUNNER_TEMP/ios18-release/d2r-mobile-ios18-r2-source.zip"
+          cd "$RUNNER_TEMP/ios18-release"
+          shasum -a 256 D2RMobile-ios18-shell.ipa d2r-mobile-ios18-r2-source.zip > SHA256SUMS.txt
+      - name: Publish r2
+        run: |
+          gh release create ios18-r2 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "D2R Mobile iOS 18 — r2" --prerelease \
+            --notes-file docs/ios18-r2-release.md \
+            "$RUNNER_TEMP/ios18-release/D2RMobile-ios18-shell.ipa" \
+            "$RUNNER_TEMP/ios18-release/d2r-mobile-ios18-r2-source.zip" \
+            "$RUNNER_TEMP/ios18-release/SHA256SUMS.txt"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios18-release-build-log
+          path: ${{ runner.temp }}/ios18-release/build.log
+          if-no-files-found: ignore
