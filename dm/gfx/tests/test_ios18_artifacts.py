@@ -33,7 +33,9 @@ class IOS18ArtifactsTest(unittest.TestCase):
 
     def test_production_renderer_has_no_metal4_api_dependency(self):
         import re
-        for file in (DM / 'gfx/nvn/nvn_mtl.m', DM / 'gfx/tex/nvn_deswizzle_gpu.m', DM / 'gfx/tex/nvn_deswizzle_gpu.h'):
+        files = [DM / 'gfx/nvn/nvn_mtl.m', DM / 'gfx/tex/nvn_deswizzle_gpu.m', DM / 'gfx/tex/nvn_deswizzle_gpu.h']
+        files.extend((DM / 'gfx/nvn').glob('*.inc'))
+        for file in files:
             with self.subTest(file=file.name):
                 self.assertFalse(re.findall(r'\bMTL4\w+', file.read_text(encoding='utf-8')))
 
