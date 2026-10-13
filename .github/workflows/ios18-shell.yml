@@ -1,0 +1,29 @@
+name: iOS 18 unsigned shell
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios18-support]
+    paths:
+      - 'dm/**'
+      - '.github/workflows/ios18-shell.yml'
+permissions:
+  contents: read
+jobs:
+  shell:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Build and verify unsigned shell
+        run: bash dm/ios/tools/ci_shell_build.sh "$RUNNER_TEMP/ios18-shell"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios18-shell
+          path: |
+            ${{ runner.temp }}/ios18-shell/D2RMobile-ios18-shell.ipa
+            ${{ runner.temp }}/ios18-shell/build.log
+          if-no-files-found: warn
+          retention-days: 7

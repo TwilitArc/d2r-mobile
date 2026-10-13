@@ -135,6 +135,8 @@ def main():
         txt = run([PY, os.path.join(IOS, 'tools', gen), romfs], what='生成 ' + name)
         with open(os.path.join(DM, 'host', name), 'w', encoding='utf-8') as f: f.write(txt)
     sys.path.insert(0, os.path.join(IOS, 'tools')); import shell_stubs
+    txt = run([PY, os.path.join(HERE, 'gen_bright_levels.py'), romfs], what='生成亮度表')
+    with open(os.path.join(DM, 'host', 'dm_bright_levels.inc'), 'w', encoding='utf-8') as f: f.write(txt)
     say('数据表：经验 %d、部位 %d、仓库条目 %d、套装 %d、技能索引 %d' % shell_stubs.data(DM, os.path.join(stage, 'dm', 'derived.tsv')))
     hud = os.path.join(IOS, 'Gen', 'assets', 'NativeHUD')
     for d, src in (('hud_v4_ui', os.path.join(hud, 'v4', 'hud_v4_ui')), ('mapgoal', os.path.join(hud, 'mapgoal')), ('mercslots', os.path.join(hud, 'mercslots'))):

@@ -41,11 +41,21 @@ def parse(dm):
     return exp, parts, rows, sets, trows, (hud, vault, art, m)
 
 
+def brightness_rows(text):
+    rows = re.findall(r'^\s*\{\s*(\d+),\s*(\d+),\s*(\d+),\s*(-?\d+)\s*\},', text, re.M)
+    assert 0 < len(rows) <= 4096, 'brightness table empty or exceeds runtime capacity'
+    assert all(0 <= int(a) <= 65535 and 0 <= int(b) <= 255 and 0 <= int(c) <= 255 and -128 <= int(d) <= 127 for a, b, c, d in rows)
+    return ['BRIGHT\t' + '\t'.join(r) for r in rows]
+
+
 def data(dm, dst):
     exp, parts, rows, sets, trows, _ = parse(dm)
     L = ['EXP\t' + '\t'.join(map(str, exp[i:i + 10])) for i in range(0, 100, 10)]
     L += ['VTPART\t' + p for p in parts] + ['VTROW\t' + '\t'.join(map(str, r)) for r in rows] + ['VTSET\t' + s for s in sets]
     L += ['TAROW\t%d\t%d\t%d' % t for t in trows]
+    bright = os.path.join(dm, 'host', 'dm_bright_levels.inc')
+    if os.path.isfile(bright):
+        with open(bright, encoding='utf-8') as f: L += brightness_rows(f.read())
     for l in L: assert '\n' not in l and l.count('\t') < 16
     for r in rows: assert '\t' not in r[6] and '\t' not in r[7]
     with open(dst, 'w', encoding='utf-8', newline='\n') as f: f.write('\n'.join(L) + '\n')

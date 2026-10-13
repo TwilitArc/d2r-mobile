@@ -30,9 +30,23 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#ifdef DM_SHELL
+#include "dm_derived_rt.h"
+static struct { uint16_t lv; uint8_t act, drlg; int8_t varies; } k_lv[4096];
+static unsigned k_lv_count;
+static void bright_row(char **f, int n, void *ctx) {
+    (void)ctx;
+    if (n != 4 || k_lv_count >= sizeof k_lv / sizeof *k_lv) return;
+    k_lv[k_lv_count].lv = (uint16_t)atoi(f[0]); k_lv[k_lv_count].act = (uint8_t)atoi(f[1]);
+    k_lv[k_lv_count].drlg = (uint8_t)atoi(f[2]); k_lv[k_lv_count].varies = (int8_t)atoi(f[3]); k_lv_count++;
+}
+__attribute__((constructor)) static void bright_load(void) { dm_derived_each("BRIGHT", bright_row, NULL); }
+#else
 static const struct { uint16_t lv; uint8_t act, drlg; int8_t varies; } k_lv[] = {
 #include "dm_bright_levels.inc"
 };
+static const unsigned k_lv_count = sizeof k_lv / sizeof *k_lv;
+#endif
 
 static int rd(uint64_t a, void *buf, size_t n) { vm_size_t got = 0; return a && !vm_read_overwrite(mach_task_self(), a, n, (vm_address_t)buf, &got) && got == n; }
 static uint64_t main_base(void) { static uint64_t b; if (!b) for (int i = 0; i < g_nmod; i++) if (!strcmp(g_mod[i].name, "main")) b = (uint64_t)g_mod[i].base; return b; }
@@ -45,7 +59,7 @@ static double target_logk(int *why, int *area, int *I, double *ang) {
     if (!dm_uiscreen_ingame()) { *why = 1; return 0; }
     dm_hud_info h; dm_hud_get(&h); *area = h.valid ? h.area : -1;
     int act = -1, drlg = -1, varies = -1;
-    for (unsigned i = 0; i < sizeof k_lv / sizeof *k_lv; i++) if (k_lv[i].lv == *area) { act = k_lv[i].act; drlg = k_lv[i].drlg; varies = k_lv[i].varies; break; }
+    for (unsigned i = 0; i < k_lv_count; i++) if (k_lv[i].lv == *area) { act = k_lv[i].act; drlg = k_lv[i].drlg; varies = k_lv[i].varies; break; }
     uint64_t env = env_ptr(); int32_t iv = -1, flag = 0, rate = 0; float t = 0;
     if (env && rd(env + 0xc, &iv, 4) && rd(env + 0x34, &flag, 4) && rd(env + 0x2c, &rate, 4) && rd(env + 0x8, &t, 4)) { *I = iv; if (rate > 0) *ang = t / rate; }
     if (drlg == 1) { *why = 2; return log(4.0); }

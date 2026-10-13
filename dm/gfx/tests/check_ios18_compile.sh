@@ -15,3 +15,4 @@ trap 'rm -rf "$OUT"' EXIT
 clang -Wall -Wextra -Werror "$HERE/t_gpu_range.c" -o "$OUT/t_gpu_range"
 "$OUT/t_gpu_range"
 python3 "$HERE/test_ios18_artifacts.py"
+python3 "$HERE/test_shell_brightness.py"
