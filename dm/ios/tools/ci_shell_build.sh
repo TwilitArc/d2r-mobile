@@ -34,9 +34,9 @@ xcodebuild -project DmIOS.xcodeproj -scheme DmIOS -configuration Release \
 mkdir -p "$OUT/Payload"
 cp -R "$OUT/dd/Build/Products/Release-iphoneos/DmIOS.app" "$OUT/Payload/"
 APP="$OUT/Payload/DmIOS.app"
-cp tools/shell_templates/shell_manifest.txt "$APP/dm/"
 V=$(sed -n 's/^#define DMSH_CHAIN "\(.*\)"/\1/p' ../gfx/nvn/dmsh_chain.h)
 test -n "$V"
+sed "s@^msl/b-[^/]*/\$@msl/b-$V/@" tools/shell_templates/shell_manifest.txt > "$APP/dm/shell_manifest.txt"
 printf 'PRODUCT=%s\nCHAIN=%s\nKIND=ios\nSHADER_SRC=58f99c2ccd5d8661\nSPIRV_CROSS=1.4.357.0\n' "$(head -1 ../PRODUCT)" "$V" > "$APP/dm/shell_info.txt"
 python3 - "$APP" "$OUT" <<'PY'
 import pathlib, plistlib, struct, sys, zipfile
